@@ -21,6 +21,7 @@ app.use(express.json());
 app.use("/api/register", require("./routes/register"));
 app.use("/api/merch", require("./routes/merch"));
 app.use("/api/donate", require("./routes/donate"));
+app.use("/api/orders", require("./routes/orders"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/auth", require("./routes/auth"));
 
