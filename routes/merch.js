@@ -1,29 +1,77 @@
 const router = require('express').Router();
 const multer = require('multer');
-const path = require('path');
+const { v2: cloudinary } = require('cloudinary');
 const Product = require('../models/Product');
 const authMiddleware = require('../middleware/auth');
 
-// Configure where/how to save images
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-const upload = multer({ storage });
 
-// GET /api/merch — get all products (public)
+// Store file in memory temporarily, not on Render disk
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed.'));
+    }
+    cb(null, true);
+  },
+});
+
+function uploadToCloudinary(fileBuffer) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'godfest-merch',
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+
+    stream.end(fileBuffer);
+  });
+}
+
+// GET /api/merch — get all products
 router.get('/', async (req, res) => {
-  const products = await Product.find().sort({ createdAt: -1 });
-  res.json(products);
+  try {
+    const products = await Product.find().sort({ createdAt: -1 });
+    res.json(products);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
-// POST /api/merch — add a product (admin only)
+// POST /api/merch — add a product
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
   try {
+    let imageUrl = null;
+    let imagePublicId = null;
+
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer);
+      imageUrl = result.secure_url;
+      imagePublicId = result.public_id;
+    }
+
     const product = new Product({
-      ...req.body,
-      imageUrl: req.file ? `/uploads/${req.file.filename}` : null
+      name: req.body.name,
+      description: req.body.description,
+      price: Number(req.body.price),
+      stock: Number(req.body.stock || 0),
+      imageUrl,
+      imagePublicId,
     });
+
     await product.save();
     res.status(201).json(product);
   } catch (err) {
@@ -31,10 +79,25 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
   }
 });
 
-// DELETE /api/merch/:id — remove a product (admin only)
+// DELETE /api/merch/:id — remove a product
 router.delete('/:id', authMiddleware, async (req, res) => {
-  await Product.findByIdAndDelete(req.params.id);
-  res.json({ message: 'Product deleted' });
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    if (product.imagePublicId) {
+      await cloudinary.uploader.destroy(product.imagePublicId);
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Product deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 module.exports = router;

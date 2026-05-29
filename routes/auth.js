@@ -2,7 +2,10 @@ const router = require('express').Router();
 const jwt = require('jsonwebtoken');
 
 // In production, store this in .env and hash with bcrypt
-const ADMIN = { username: 'admin', password: 'godfest2026' };
+const ADMIN = {
+  username: process.env.ADMIN_USERNAME,
+  password: process.env.ADMIN_PASSWORD
+};
 
 router.post('/login', (req, res) => {
   const { username, password } = req.body;

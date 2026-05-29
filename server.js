@@ -2,7 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const path = require("path");
+// const path = require("path");
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ app.use(cors({ origin: process.env.CLIENT_URL }));
 app.use(express.json());
 
 // Serve uploaded images as static files
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Connect all routes
 app.use("/api/register", require("./routes/register"));
