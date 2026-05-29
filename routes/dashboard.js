@@ -13,7 +13,9 @@ router.get('/', authMiddleware, async (req, res) => {
     Order.find().populate('product').sort({ createdAt: -1 })
   ]);
 
-  const totalDonations = donations.reduce((sum, d) => sum + d.amount, 0);
+  const totalDonations = donations
+  .filter(d => d.status === 'confirmed')
+  .reduce((sum, d) => sum + d.amount, 0);
 
   res.json({
     attendees,
